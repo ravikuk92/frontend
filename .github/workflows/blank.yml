@@ -36,22 +36,37 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
+    - name: Install AWS CLI
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y awscli
+        aws --version
+
+    - name: Configure AWS CLI
+      run: |
+        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws configure set region ${{ secrets.AWS_REGION }}
+
     - name: Describe EC2 instance
       id: describe_ec2
       run: |
-        INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=${{ secrets.EC2_INSTANCE_NAME }}" --query "Reservations[0].Instances[0].InstanceId" --output text)
-        echo "::set-output name=INSTANCE_ID::$INSTANCE_ID"
+        aws ec2 describe-instances --filters "Name=tag:Name,Values=${{ secrets.EC2_INSTANCE_NAME }}" --query "Reservations[0].Instances[0].InstanceId" --output text
 
     - name: Start EC2 instance
       id: start_ec2
       run: |
-        aws ec2 start-instances --instance-ids ${{ steps.describe_ec2.outputs.INSTANCE_ID }}
-        aws ec2 wait instance-running --instance-ids ${{ steps.describe_ec2.outputs.INSTANCE_ID }}
+        INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=${{ secrets.EC2_INSTANCE_NAME }}" --query "Reservations[0].Instances[0].InstanceId" --output text)
+        echo "INSTANCE_ID=$INSTANCE_ID"
+        echo "::set-output name=INSTANCE_ID::$INSTANCE_ID"
+        aws ec2 start-instances --instance-ids $INSTANCE_ID
+        aws ec2 wait instance-running --instance-ids $INSTANCE_ID
 
     - name: Get EC2 public IP
       id: get_ip
       run: |
-        IP=$(aws ec2 describe-instances --instance-ids ${{ steps.describe_ec2.outputs.INSTANCE_ID }} --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+        IP=$(aws ec2 describe-instances --instance-ids ${{ steps.start_ec2.outputs.INSTANCE_ID }} --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+        echo "EC2_PUBLIC_IP=$IP"
         echo "::set-output name=EC2_PUBLIC_IP::$IP"
 
     - name: Wait for SSH
