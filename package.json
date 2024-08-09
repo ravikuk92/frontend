@@ -1,0 +1,15 @@
+{
+  "name": "interactive-form",
+  "version": "1.0.0",
+  "description": "A simple Node.js server to handle form submissions and update an SQLite database.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {
+    "sqlite3": "^5.1.2"
+  }
+}
