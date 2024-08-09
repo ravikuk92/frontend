@@ -1,9 +1,9 @@
-name: Deploy Docker Service
+name: Deploy Dockerized App
 
 on:
   push:
     branches:
-      - main  # Trigger on pushes to the main branch
+      - mains
 
 jobs:
   build:
@@ -17,77 +17,49 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v2
-        with:
-          push: true
-          tags: ravik92/nginx:latest
+        run: |
+          docker build . -t ${{ secrets.DOCKER_USERNAME }}/interactive-form:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/interactive-form:latest
 
   deploy:
-    needs: build
     runs-on: ubuntu-latest
+    needs: build
 
     steps:
-      - name: Set up AWS CLI
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
       - name: Start EC2 instance
         env:
-          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}  # EC2 instance ID stored in GitHub Secrets
+          INSTANCE_NAME: ${{ secrets.EC2_INSTANCE_NAME }}
         run: |
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$INSTANCE_NAME" --query "Reservations[0].Instances[0].InstanceId" --output text)
           aws ec2 start-instances --instance-ids $INSTANCE_ID
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+          INSTANCE_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+          echo "INSTANCE_IP=$INSTANCE_IP" >> $GITHUB_ENV
 
-      - name: Wait for EC2 instance to be accessible
-        id: wait_for_ssh
+      - name: Wait for EC2 to be accessible
         run: |
-          # Wait for 30 seconds to ensure the instance is up
-          sleep 30
+          sleep 60
+          for i in {1..10}; do
+            ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ${{ secrets.EC2_USER }}@$INSTANCE_IP 'echo SSH connection established' && break
+            sleep 10
+          done
 
-          # Get the public IP address of the instance
-          INSTANCE_IP=$(aws ec2 describe-instances --instance-ids ${{ secrets.EC2_INSTANCE_ID }} --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
-          
-          # Check if the instance is reachable via SSH
-          if nc -z -v -w30 $INSTANCE_IP 22; then
-            echo "Instance is reachable via SSH."
-          else
-            echo "Instance is not reachable via SSH."
-            exit 1
-          fi
-
-          # Set the public IP as an environment variable
-          echo "PUBLIC_IP=$INSTANCE_IP" >> $GITHUB_ENV
-
-      - name: Set up SSH key
-        uses: webfactory/ssh-agent@v0.5.3
-        with:
-          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}  # SSH key stored in GitHub Secrets
-
-      - name: Deploy Docker service
+      - name: Deploy to EC2
         env:
-          EC2_USER: ${{ secrets.EC2_USER }}  # EC2 user stored in GitHub Secrets
+          DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/interactive-form:latest
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
-          # Deploy Docker service using Docker Compose
-          ssh -o StrictHostKeyChecking=no $EC2_USER@$PUBLIC_IP << EOF
-            # Install Docker Compose if not already installed
-            if ! command -v docker-compose &> /dev/null; then
-              sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-\$(uname -s)-\$(uname -m)" -o /usr/local/bin/docker-compose
-              sudo chmod +x /usr/local/bin/docker-compose
-            fi
-
-            # Navigate to the directory with docker-compose.yml
-            cd /path/to/your/docker-compose/directory
-
-            # Pull the latest Docker images and start the services
-            docker-compose pull
-            docker-compose up -d
+          echo "$SSH_KEY" > /tmp/ec2_key.pem
+          chmod 600 /tmp/ec2_key.pem
+          ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ${{ secrets.EC2_USER }}@$INSTANCE_IP << EOF
+            docker pull $DOCKER_IMAGE
+            docker stop web || true
+            docker rm web || true
+            docker run -d --name web -p 3000:3000 $DOCKER_IMAGE
           EOF
