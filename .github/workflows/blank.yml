@@ -32,6 +32,11 @@ jobs:
     needs: build
 
     steps:
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
       - name: Start EC2 instance
         env:
           INSTANCE_NAME: ${{ secrets.EC2_INSTANCE_NAME }}
@@ -43,10 +48,16 @@ jobs:
           echo "INSTANCE_IP=$INSTANCE_IP" >> $GITHUB_ENV
 
       - name: Wait for EC2 to be accessible
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          INSTANCE_IP: ${{ env.INSTANCE_IP }}
         run: |
+          echo "$SSH_KEY" > /tmp/ec2_key.pem
+          chmod 600 /tmp/ec2_key.pem
           sleep 60
           for i in {1..10}; do
-            ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ${{ secrets.EC2_USER }}@$INSTANCE_IP 'echo SSH connection established' && break
+            ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem $EC2_USER@$INSTANCE_IP 'echo SSH connection established' && break
             sleep 10
           done
 
@@ -54,12 +65,14 @@ jobs:
         env:
           DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/interactive-form:latest
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          INSTANCE_IP: ${{ env.INSTANCE_IP }}
         run: |
           echo "$SSH_KEY" > /tmp/ec2_key.pem
           chmod 600 /tmp/ec2_key.pem
-          ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ${{ secrets.EC2_USER }}@$INSTANCE_IP << EOF
+          ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem $EC2_USER@$INSTANCE_IP << EOF
             docker pull $DOCKER_IMAGE
             docker stop web || true
             docker rm web || true
-            docker run -d --name web -p 3000:3000 $DOCKER_IMAGE
+            docker run -d --name web -p 80:80 $DOCKER_IMAGE
           EOF
