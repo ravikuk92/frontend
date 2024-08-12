@@ -32,32 +32,50 @@ jobs:
     needs: build
 
     steps:
-      - name: Install AWS CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y awscli
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Start EC2 instance
         env:
           INSTANCE_NAME: ${{ secrets.EC2_INSTANCE_NAME }}
         run: |
+          echo "Looking for EC2 instance with Name tag: $INSTANCE_NAME"
+
+          # Get the Instance ID
           INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$INSTANCE_NAME" --query "Reservations[0].Instances[0].InstanceId" --output text)
+          
+          # Check if INSTANCE_ID was retrieved
+          if [ -z "$INSTANCE_ID" ]; then
+            echo "Error: Could not find EC2 instance with Name tag: $INSTANCE_NAME"
+            exit 1
+          fi
+
+          echo "Found EC2 instance with ID: $INSTANCE_ID"
+
+          # Start the EC2 instance
           aws ec2 start-instances --instance-ids $INSTANCE_ID
+
+          # Wait for the instance to be running
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+
+          # Get the Public IP
           INSTANCE_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+          echo "INSTANCE_IP: $INSTANCE_IP"
           echo "INSTANCE_IP=$INSTANCE_IP" >> $GITHUB_ENV
 
       - name: Wait for EC2 to be accessible
-        env:
-          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          INSTANCE_IP: ${{ env.INSTANCE_IP }}
         run: |
-          echo "$SSH_KEY" > /tmp/ec2_key.pem
-          chmod 600 /tmp/ec2_key.pem
+          echo "Waiting for the EC2 instance to be accessible via SSH..."
+
+          # Add a delay to allow the instance to fully boot up
           sleep 60
+
           for i in {1..10}; do
-            ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem $EC2_USER@$INSTANCE_IP 'echo SSH connection established' && break
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i /tmp/ec2_key.pem ${{ secrets.EC2_USER }}@$INSTANCE_IP 'echo SSH connection established' && break
             sleep 10
           done
 
@@ -65,14 +83,13 @@ jobs:
         env:
           DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/interactive-form:latest
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          INSTANCE_IP: ${{ env.INSTANCE_IP }}
         run: |
           echo "$SSH_KEY" > /tmp/ec2_key.pem
           chmod 600 /tmp/ec2_key.pem
-          ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem $EC2_USER@$INSTANCE_IP << EOF
+
+          ssh -o StrictHostKeyChecking=no -i /tmp/ec2_key.pem ${{ secrets.EC2_USER }}@$INSTANCE_IP << EOF
             docker pull $DOCKER_IMAGE
             docker stop web || true
             docker rm web || true
-            docker run -d --name web -p 80:80 $DOCKER_IMAGE
+            docker run -d --name web -p 3000:3000 $DOCKER_IMAGE
           EOF
