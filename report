@@ -1,0 +1,64 @@
+#!/bin/bash
+# This script generates the held tasks report for older than 7 days
+# Version date: 10/04/2024
+
+# HTTP endpoint in the format of https://<controlmEndPoint>:8443/automation-api
+endpoint=https://xxxx:8443/automation-api
+
+# Set this variable to Control-M user credentials
+user=$1
+password=$2
+
+report_path=$3
+
+dt=$(date -d "7 days ago" "+%Y%m%d")
+
+if [[ -z "$user" || -z "$password" || -z "$report_path" ]]; then
+  echo "Error: Missing required arguments."
+  echo "Usage: $0 <user> <password> <report_path>"
+  exit 1
+fi
+
+# Out of the Box the end point comes with self signed certificate, -k option accept such certificates
+curl_params="-k -s"
+
+echo "Pulling the report of held tasks older than 7 days"
+
+# Session Login and get access API session token
+login=$(curl $curl_params -H "Content-Type: application/json" -X POST -d "{\"username\":\"$user\",\"password\":\"$password\"}" "$endpoint/session/login")
+token=$(echo ${login##*token\" : \"} | cut -d '"' -f 1)
+
+# Create the report for held jobs
+reportgen=$(curl $curl_params -H "Authorization: Bearer $token" -H "Content-Type: application/json" -X POST -d "{\"name\": \"Held_JOBS\",\"format\":\"csv\",\"filters\": [ {\"name\": \"Run Date\", \"value\": \"$dt\"}]}" "$endpoint/reporting/report")
+reportID=$(echo ${reportgen##*reportId\" : \"} | cut -d '"' -f 1)
+
+if [[ -z "$reportID" ]]; then
+  echo "Error: Failed to generate report."
+  exit 1
+fi
+
+echo "Report ID: $reportID"
+
+# Continuously check the report status every 30 seconds
+while [[ $rptSt != "SUCCEEDED" ]]; do
+  echo "Checking report status..."
+  statusresp=$(curl $curl_params -H "Authorization: Bearer $token" "$endpoint/reporting/status/$reportID")
+  rptSt=$(echo ${statusresp##*status\" : \"} | cut -d '"' -f 1)
+
+  echo "Current status of report is $rptSt"
+
+  if [[ "$rptSt" != "SUCCEEDED" ]]; then
+    echo "Report is not ready yet, waiting for 30 seconds..."
+    sleep 30
+  fi
+done
+
+# Once status is succeeded, proceed to download the report
+echo "Downloading the report..."
+curl $curl_params -H "Authorization: Bearer $token" "$endpoint/reporting/download?reportId=$reportID" -o $report_path
+
+# Session Logout to invalidate API session
+curl $curl_params -H "Authorization: Bearer $token" -X POST "$endpoint/session/logout"
+
+echo "Report saved at: $report_path"
+echo "API Session logged out successfully."
