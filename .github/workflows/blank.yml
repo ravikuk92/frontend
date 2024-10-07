@@ -3,7 +3,7 @@ name: Deploy Dockerized App
 on:
   push:
     branches:
-      - main
+      - mainss
 
 jobs:
   build:
