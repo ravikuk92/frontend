@@ -1,5 +1,6 @@
 #!/bin/bash
 # This script generates the held tasks report for older than 7 days
+#author : Ravikumar Kumarasamy - Senior
 # Version date: 10/04/2024
 
 # HTTP endpoint in the format of https://<controlmEndPoint>:8443/automation-api
@@ -8,14 +9,14 @@ endpoint=https://xxxx:8443/automation-api
 # Set this variable to Control-M user credentials
 user=$1
 password=$2
-
-report_path=$3
+rptname=$3
+report_path=$4
 
 dt=$(date -d "7 days ago" "+%Y%m%d")
 
-if [[ -z "$user" || -z "$password" || -z "$report_path" ]]; then
+if [[ -z "$user" || -z "$password" || -z "$rptname" || -z "$report_path" ]]; then
   echo "Error: Missing required arguments."
-  echo "Usage: $0 <user> <password> <report_path>"
+  echo "Usage: $0 <user> <password> <rptname> <report_path>"
   exit 1
 fi
 
@@ -29,7 +30,7 @@ login=$(curl $curl_params -H "Content-Type: application/json" -X POST -d "{\"use
 token=$(echo ${login##*token\" : \"} | cut -d '"' -f 1)
 
 # Create the report for held jobs
-reportgen=$(curl $curl_params -H "Authorization: Bearer $token" -H "Content-Type: application/json" -X POST -d "{\"name\": \"Held_JOBS\",\"format\":\"csv\",\"filters\": [ {\"name\": \"Run Date\", \"value\": \"$dt\"}]}" "$endpoint/reporting/report")
+reportgen=$(curl $curl_params -H "Authorization: Bearer $token" -H "Content-Type: application/json" -X POST -d "{\"name\": \"$rptname\",\"format\":\"csv\",\"filters\": [ {\"name\": \"Job State\",\"value\"},{\"name\":\"Run Date\", \"value\": \"$dt\"}]}" "$endpoint/reporting/report")
 reportID=$(echo ${reportgen##*reportId\" : \"} | cut -d '"' -f 1)
 
 if [[ -z "$reportID" ]]; then
