@@ -1,6 +1,6 @@
 #!/bin/bash
 # This script generates the held tasks report for older than 7 days
-#author : Ravikumar Kumarasamy - Senior
+#Author : Ravikumar Kumarasamy - Senior Consultant -Infrasctructue Management
 # Version date: 10/04/2024
 
 # HTTP endpoint in the format of https://<controlmEndPoint>:8443/automation-api
