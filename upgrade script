@@ -1,0 +1,79 @@
+#!/bin/bash
+##############################################
+# Script: Control-M Agent v21 Installation UPGRADE script
+# Name: ctmv21_latest_upgrade.sh
+# Input Arguments:
+# 1 - Agent account
+# 2 - JRE_PATH
+# Parameters validation
+##############################################
+
+# Function to perform precheck on the agent
+fn_agent_precheck() {
+    agHome=$(cat /etc/passwd | grep "^${agOwn}:" | awk -F':' '{print $6}')
+    if ls ${agHome}/ctm/tmp 2>/dev/null 1>/dev/null; then
+        echo "Pre-Checking - ${agHome}/ctm/tmp exists."
+    else
+        mkdir -p ${agHome}/ctm/tmp
+        echo "Created ${agHome}/ctm/tmp for temporary files."
+    fi
+
+    ag_diag_comm=${agHome}/ctm/tmp/ag_status_before_upgrade_date_$(date "+%Y%m%d").txt
+    ag_status_before_upgrade=${agHome}/ctm/tmp/ag_status_before_upgrade_date_$(date "+%Y%m%d").txt
+}
+
+# Function to perform the actual agent upgrade
+fn_agent_upgrade() {
+    agHome=$(cat /etc/passwd | grep "^${agOwn}:" | awk -F':' '{print $6}')
+    cd $agHome
+
+    chmod 755 ${agHome}/ag_upgrade_files
+    echo "Pre-Setup: Configuring JRE 11 to Agent HOME."
+    export BMC_INST_JAVA_HOME=${JRE_PATH}
+    echo "Pre-Setup: Java Home is ${JRE_PATH}"
+
+    # Corrected the missing space in the tar command
+    tar -xvzf $agHome/ag_upgrade_files/DRFZ.9.0.21.200.Linux-x86_64.z
+
+    # Start upgrade process
+    echo "Running setup.sh..."
+    ls "${agHome}/ag_upgrade_files/setup.sh"
+    echo "${agHome}/ag_upgrade_files/setup.sh -silent ${silentfile}"
+    "${agHome}/ag_upgrade_files/setup.sh" -silent ${silentfile}
+    IRC=$?
+
+    if [[ ${IRC} -gt 0 ]]; then
+        echo "ERROR - Agent Upgrade Command Failed while running setup.sh - RC=${IRC}. Please escalate the issue to the support team."
+        exit 12
+    else
+        echo "Installation successful - RC=${IRC}"
+    fi
+
+    ag_diag_comm=${agHome}/ctm/tmp/ag_status_after_upgrade_date_$(date "+%Y%m%d").txt
+    ag_status_after_upgrade=${agHome}/ctm/tmp/ag_status_after_upgrade_date_$(date "+%Y%m%d").txt
+}
+
+# Parameters validation
+if [[ $# -ne 2 ]]; then
+    echo "Error: Invalid input argument!"
+    echo "Usage: $0 <Agent account> <JRE_PATH>"
+    echo " "
+    exit 2
+else
+    agOwn=$1
+    JRE_PATH=$2
+    echo "Agent account is $1"
+    echo "JRE_PATH is $2"
+fi
+
+# PRE-STEP
+for i in $(cat /home/ctmag/serverlist.txt); do
+    # Ensure the agent precheck function is passed correctly to the remote system
+    ssh -o StrictHostKeyChecking=no -o ConnectionTimeout=5 "ctmag@$i" -q "$(declare -f fn_agent_precheck); fn_agent_precheck"
+
+    # Move the setup files to the agent home directory
+    scp -r ag_upgrade_files "ctmag@$i:${agHome}"
+
+    # Perform the upgrade by passing the function definition over SSH
+    ssh -o StrictHostKeyChecking=no -o ConnectionTimeout=5 "ctmag@$i" -q "$(declare -f fn_agent_upgrade); fn_agent_upgrade"
+done
