@@ -27,11 +27,11 @@ fn_agent_upgrade() {
     agHome=$(cat /etc/passwd | grep "^${agOwn}:" | awk -F':' '{print $6}')
     cd $agHome
 
-    chmod 755 ${agHome}/ag_upgrade_files
+    chmod -R 755 ${agHome}/ag_upgrade_files
     echo "Pre-Setup: Configuring JRE 11 to Agent HOME."
     export BMC_INST_JAVA_HOME=${JRE_PATH}
     echo "Pre-Setup: Java Home is ${JRE_PATH}"
-
+    silentfile=/home/ctmag/ag_upgrade_files/silentcongif.xml
     # Corrected the missing space in the tar command
     tar -xvzf $agHome/ag_upgrade_files/DRFZ.9.0.21.200.Linux-x86_64.z
 
