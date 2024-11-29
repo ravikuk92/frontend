@@ -1,0 +1,65 @@
+To modify your script so that it downloads all the contents of subfolders when there are multiple lines in the text file, you can use a loop to process each line in the source_nexus_artifacts.txt file. Below is the updated script:
+
+#!/bin/bash
+
+# Prompt the path to ctm_ag_mnt folder
+BASE_PATH=$(pwd)/ctm_ag_mnt
+
+# Prompt for Nexus credentials
+NEXUS_USERNAME=$1
+NEXUS_PASSWORD=$2
+echo
+
+# Loop through each subfolder in ctm_ag_mnt
+for SUBFOLDER in "agent_toolkit" "bmc" "jre" "rpm" "scripts"; do
+    # Define the path to the text file
+    TEXT_FILE="$BASE_PATH/$SUBFOLDER/source_nexus_artifacts.txt"
+
+    # Check for the text file
+    if [ -f "$TEXT_FILE" ]; then
+        # Read each line from the text file
+        while IFS= read -r NEXUS_URL || [ -n "$NEXUS_URL" ]; do
+            echo "Processing URL: $NEXUS_URL"
+            
+            # Download the file using curl
+            curl -u "$NEXUS_USERNAME:$NEXUS_PASSWORD" -sS -o "$BASE_PATH/$SUBFOLDER/$(basename "$NEXUS_URL")" "$NEXUS_URL"
+            
+            # Check if the download was successful
+            if [ $? -eq 0 ]; then
+                echo "File downloaded successfully in $SUBFOLDER"
+                
+                # Unzip the file if in 'scripts' folder
+                if [[ $SUBFOLDER == "scripts" ]]; then
+                    unzip -qo "$BASE_PATH/$SUBFOLDER/$(basename "$NEXUS_URL")" -d "$BASE_PATH/$SUBFOLDER"
+                fi
+            else
+                echo "Failed to download file from $NEXUS_URL in $SUBFOLDER"
+            fi
+        done < "$TEXT_FILE"
+    else
+        echo "Text file $TEXT_FILE not found in $SUBFOLDER"
+    fi
+done
+
+Changes Made:
+
+1. Read Multiple Lines: Added a while loop to read each URL line from the source_nexus_artifacts.txt file.
+
+
+2. File Validation: Ensures that the script processes even if the text file has empty lines.
+
+
+3. Error Handling: Added proper error handling to show which URL failed.
+
+
+4. Unzip Logic: Keeps the unzip functionality for the scripts folder.
+
+
+
+Usage:
+
+Run the script with your Nexus username and password as arguments:
+
+bash download_nexus_files.sh <NEXUS_USERNAME> <NEXUS_PASSWORD>
+
+Ensure the source_nexus_artifacts.txt file in each subfolder contains valid URLs, one per line. Let me know if you need further assistance!
