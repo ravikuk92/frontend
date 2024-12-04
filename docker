@@ -1,0 +1,35 @@
+# Stage 1: Build
+FROM node:16 AS builder
+
+# Set the working directory
+WORKDIR /app
+
+# Copy package.json and package-lock.json
+COPY package.json package-lock.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy the rest of the application files
+COPY . .
+
+# Build the React application
+RUN npm run build
+
+# Stage 2: Runtime
+FROM nginx:stable-alpine
+
+# Set the working directory
+WORKDIR /usr/share/nginx/html
+
+# Remove the default Nginx static files
+RUN rm -rf ./*
+
+# Copy the build files from the builder stage
+COPY --from=builder /app/build .
+
+# Expose the port Nginx will run on
+EXPOSE 80
+
+# Start Nginx server
+CMD ["nginx", "-g", "daemon off;"]
