@@ -1,14 +1,14 @@
-To create a single Azure Web App that can handle multiple databases and URLs, you can use environment variables to dynamically configure the database connections based on the request. Here are the steps to achieve this:
+# Changes Required
 
-Modify the Application Code:
+To create a single Azure Web App that can handle multiple databases and URLs, you can use environment variables to dynamically configure the database connections based on the request. Here are the steps:
 
-Update your application to select the appropriate database configuration based on the request. You can use middleware to determine the database configuration dynamically.
-Update the Deployment Workflows:
+## Modify the Application Code
 
-Modify the GitHub Actions workflows to deploy a single web app and set the necessary environment variables.
-Step 1: Modify the Application Code
-Update your dbConfig.js to handle multiple database configurations. For example:
+### Step 1: Update your dbConfig.js
 
+Handle multiple database configurations. For example:
+
+```javascript
 const { Pool } = require('pg');
 require('dotenv').config();
 
@@ -59,125 +59,3 @@ const createPool = (service) => {
 module.exports = {
   createPool,
 };
-
-
-Update your index.js to use the appropriate database configuration based on the request:
-
-
-const express = require('express');
-const { createPool } = require('./dbConfig');
-const app = express();
-
-app.use(express.json());
-
-app.use((req, res, next) => {
-  const service = req.headers['x-service'];
-  if (!service) {
-    return res.status(400).json({ error: 'Service header is required' });
-  }
-  req.dbPool = createPool(service);
-  next();
-});
-
-// Your routes here
-
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-Step 2: Update the Deployment Workflows
-Modify the GitHub Actions workflows to deploy a single web app and set the necessary environment variables:
-
-name: Deploy to Azure Web App
-
-on:
-  push:
-    branches:
-      - main
-      - dev
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    env:
-      DATASOURCE_URL_HMS: ${{ secrets.DATASOURCE_URL_HMS }}
-      DATASOURCE_USERNAME_HMS: ${{ secrets.DATASOURCE_USERNAME_HMS }}
-      DATASOURCE_PASSWORD_HMS: ${{ secrets.DATASOURCE_PASSWORD_HMS }}
-      DATABASE_NAME_HMS: ${{ secrets.DATABASE_NAME_HMS }}
-      DATASOURCE_URL_MIS: ${{ secrets.DATASOURCE_URL_MIS }}
-      DATASOURCE_USERNAME_MIS: ${{ secrets.DATASOURCE_USERNAME_MIS }}
-      DATASOURCE_PASSWORD_MIS: ${{ secrets.DATASOURCE_PASSWORD_MIS }}
-      DATABASE_NAME_MIS: ${{ secrets.DATABASE_NAME_MIS }}
-      DATASOURCE_URL_PJC: ${{ secrets.DATASOURCE_URL_PJC }}
-      DATASOURCE_USERNAME_PJC: ${{ secrets.DATASOURCE_USERNAME_PJC }}
-      DATASOURCE_PASSWORD_PJC: ${{ secrets.DATASOURCE_PASSWORD_PJC }}
-      DATABASE_NAME_PJC: ${{ secrets.DATABASE_NAME_PJC }}
-      DATASOURCE_URL_JOBCARD: ${{ secrets.DATASOURCE_URL_JOBCARD }}
-      DATASOURCE_USERNAME_JOBCARD: ${{ secrets.DATASOURCE_USERNAME_JOBCARD }}
-      DATASOURCE_PASSWORD_JOBCARD: ${{ secrets.DATASOURCE_PASSWORD_JOBCARD }}
-      DATABASE_NAME_JOBCARD: ${{ secrets.DATABASE_NAME_JOBCARD }}
-      DATABASE_PORT: ${{ secrets.DATABASE_PORT }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Log in to Azure
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Log in to Azure Container Registry
-        uses: azure/docker-login@v1
-        with:
-          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-
-      - name: Extract version
-        id: extract_version
-        run: |
-          version=$(jq -r .version package.json)
-          echo "VERSION=$version" >> $GITHUB_ENV
-
-      - name: Build and Push Docker image
-        run: |
-          docker buildx build --push --tag ${{ secrets.ACR_LOGIN_SERVER }}/user-management:latest --tag ${{ secrets.ACR_LOGIN_SERVER }}/user-management:${{ env.VERSION }} .
-
-      - name: Set environment variables for Azure App Service
-        run: |
-          az webapp config appsettings set --resource-group ${{ secrets.RESOURCE_GROUP_NAME }} --name ${{ secrets.AS_NAME }} --settings \
-          DATASOURCE_URL_HMS=${{ env.DATASOURCE_URL_HMS }} \
-          DATASOURCE_USERNAME_HMS=${{ env.DATASOURCE_USERNAME_HMS }} \
-          DATASOURCE_PASSWORD_HMS=${{ env.DATASOURCE_PASSWORD_HMS }} \
-          DATABASE_NAME_HMS=${{ env.DATABASE_NAME_HMS }} \
-          DATASOURCE_URL_MIS=${{ env.DATASOURCE_URL_MIS }} \
-          DATASOURCE_USERNAME_MIS=${{ env.DATASOURCE_USERNAME_MIS }} \
-          DATASOURCE_PASSWORD_MIS=${{ env.DATASOURCE_PASSWORD_MIS }} \
-          DATABASE_NAME_MIS=${{ env.DATABASE_NAME_MIS }} \
-          DATASOURCE_URL_PJC=${{ env.DATASOURCE_URL_PJC }} \
-          DATASOURCE_USERNAME_PJC=${{ env.DATASOURCE_USERNAME_PJC }} \
-          DATASOURCE_PASSWORD_PJC=${{ env.DATASOURCE_PASSWORD_PJC }} \
-          DATABASE_NAME_PJC=${{ env.DATABASE_NAME_PJC }} \
-          DATASOURCE_URL_JOBCARD=${{ env.DATASOURCE_URL_JOBCARD }} \
-          DATASOURCE_USERNAME_JOBCARD=${{ env.DATASOURCE_USERNAME_JOBCARD }} \
-          DATASOURCE_PASSWORD_JOBCARD=${{ env.DATASOURCE_PASSWORD_JOBCARD }} \
-          DATABASE_NAME_JOBCARD=${{ env.DATABASE_NAME_JOBCARD }} \
-          DATABASE_PORT=${{ env.DATABASE_PORT }}
-
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: '${{ secrets.AS_NAME }}'
-          images: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/user-management:${{ env.VERSION }}
-
-      - name: Log out from Docker ACR
-        run: docker logout ${{ secrets.ACR_LOGIN_SERVER }}
-
-      - name: Log out from Azure
-        run: az logout
