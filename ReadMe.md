@@ -60,11 +60,11 @@ module.exports = {
   createPool,
 };
 
+### Step 2: Update your index.js
 
-### step 2: Update your index.js to use the appropriate database configuration based on the request:
+Use the appropriate database configuration based on the request:
 
 ```javascript
-
 const express = require('express');
 const { createPool } = require('./dbConfig');
 const app = express();
@@ -79,6 +79,11 @@ app.use((req, res, next) => {
   req.dbPool = createPool(service);
   next();
 });
+
+// Your routes here
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 // Your routes here
 
