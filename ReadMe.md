@@ -1,10 +1,10 @@
-` # Changes Required
+ # Changes Required
 
 To create a single Azure Web App that can handle multiple databases and URLs, you can use environment variables to dynamically configure the database connections based on the request. Here are the steps:
 
 ## Modify the Application Code `
 
-` ### Step 1: Update your dbConfig.js 
+### Step 1: Update your dbConfig.js 
 
 Handle multiple database configurations. For example:
 
@@ -59,11 +59,12 @@ const createPool = (service) => {
 module.exports = {
   createPool,
 };
-`
+```
 
 
-`## Step 2: Update your index.js
+## Step 2: Update your index.js
 Use the appropriate database configuration based on the request:
+
 ```javascript
 
 const express = require('express');
@@ -81,7 +82,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Your routes here`
+// Your routes here
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+```
