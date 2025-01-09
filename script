@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# Set PATH based on OS type
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+case $(uname) in
+SunOS)
+    PATH=$PATH:/usr/ucb
+    ;;
+Linux)
+    if [[ -d /usr/ucb ]]; then
+        PATH=$PATH:/usr/ucb
+    fi
+    ;;
+AIX)
+    ;;
+*)
+    echo "ERROR - Unknown OS"
+    exit 2
+esac
+
+export PATH
+
+# Find configuration files
+confDataFiles=$(find /opt/cmausr* /opt/ctmag* /sysu/ctm/cmausr* /opt/controlm/ctmag* /cntlm/ctmag* \
+    -name "[Cc][Oo][Nn][Ff][Ii][Gg].dat" 2>/dev/null)
+
+if [[ "$confDataFiles" != "" ]]; then
+    for confData in $confDataFiles; do
+        if [[ $(grep -c CTMPERMHOSTS "$confData") -gt 0 ]]; then
+            # Extract data from the configuration file
+            if echo "$confData" | grep -v uninstall 1>/dev/null 2>/dev/null; then
+                agOwn=$(ls -stat --format "%U" "$confData")
+                agVer=$(awk '/FWD_NUMBER/{print $2}' "$confData")
+                ctmMist=$(awk '/FIX_NUMBER/{print $2}' "$confData")
+                srvAg=$(awk '/CTMSHOST/{print $2}' "$confData")
+                srvAgPort=$(awk '/SRVAG_PORT/{print $2}' "$confData")
+                agSSL=$(awk '/AG_MODE/{print $2}' "$confData")
+                agPersistent=$(awk '/PERSISTENT_CONNECTION/{print $2}' "$confData")
+                agProtocol=$(awk '/PROTOCOL_VERSION/{print $2}' "$confData")
+            fi
+
+            # Extract version details
+            PACOBname=$(grep "PACOB" "$AGHOME"/installed-versions.txt 2>/dev/null | tail -1 | awk '{print $1}')
+            DRCQBname=$(grep "DRCQB" "$AGHOME"/installed-versions.txt 2>/dev/null | tail -1 | awk '{print $1}')
+            PAPMCname=$(grep "PAPMC" "$AGHOME"/installed-versions.txt 2>/dev/null | tail -1 | awk '{print $1}')
+            DRPMCname=$(grep "DRPMC" "$AGHOME"/installed-versions.txt 2>/dev/null | tail -1 | awk '{print $1}')
+            PAMQMname=$(grep "PAMQM" "$AGHOME"/installed-versions.txt 2>/dev/null | tail -1 | awk '{print $1}')
+            DRMQname=$(grep "DRMQ" "$AGHOME"/installed-versions.txt 2>/dev/null | tail -1 | awk '{print $1}')
+            PAAFPname=$(grep "PAAFP" "$AGHOME"/installed-versions.txt 2>/dev/null | tail -1 | awk '{print $1}')
+            DRAFPname=$(grep "DRAFP" "$AGHOME"/installed-versions.txt 2>/dev/null | tail -1 | awk '{print $1}')
+
+            # Output results
+            echo "$confData" "Version=$agVer" "CTMSRV=$ctmMist" "SRV2AG=$srvAgPort"
+            echo "$confData" "Persistent=$agPersistent" "Mode=$agSSL" "Protocol=$agProtocol"
+
+            if [[ $PACOBname != "" || $DRCQBname != "" || $PAPMCname != "" ]]; then
+                echo "$confData" "$PACOBname":"$DRCQBname":"$PAPMCname"
+            fi
+
+            if [[ $PAAFPname != "" || $DRAFPname != "" ]]; then
+                echo "$confData" "$PAAFPname":"$DRAFPname"
+            fi
+        fi
+    done
+else
+    exit 1
+fi
+
+exit 0
