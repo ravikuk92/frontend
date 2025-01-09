@@ -1,22 +1,14 @@
-# Stage 1: Build the React application
-FROM node:20-slim AS build
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install --production
-COPY . .
-RUN npm run build
-
-# Stage 2: Serve with NGINX
-FROM nginx:1.25-alpine
-
-COPY --from=build /app/build /usr/share/nginx/html
-
-# Expose port 3000
-EXPOSE 3000
-
-# Update NGINX configuration to listen on port 3000
-RUN sed -i 's/listen 80;/listen 3000;/' /etc/nginx/conf.d/default.conf
-
-CMD ["nginx", "-g", "daemon off;"]
+$agDir=%{Get-ItemProperty -Path "$confRegArray" -ErrorAction Ignore) | %{$_•AGENT_DIR} $agFDVer≤%{Get-ItemProperty -Path "$confRegArray"-ErrorAction Ignore} | %{$_.FD_NUMBER}
+$agFXVer=%{Get-ItemProperty -Path "$confRegArray" -ErrorAction Ignore} | %{$_-FIX_NUMBER} $agctmHst=%{Get-ItemProperty -Path "$confRegArray" -ErrorAction Ignore} | %{$_. CMSHOST}
+$agSSL=%{Get-ItemProperty -Path "$confRegArray" -ErrorAction Ignore} | %{$_. COMMOT}
+$agsrvport=%{Get-ItemProperty -Path "$confRegArray" -ErrorAction Ignore} | %{$_-AGCMNDATA}
+$rvagport= %{Get-ItemProperty -Path "$confRegArray" -ErrorAction Ignore} | %{_•ATCMNDATA}
+$agPersistent=%{Get-ItemProperty -Path "$confRegArray" -ErrorAction Ignore} | %{$_-PERSISTENT_CONNECTION} $agProtocol=%{Get-ItemProperty -Path "$confRegArray" -ErrorAction Ignore} | %{$_•PROTOCOL_VERSION}
+$LogicalAgName=%{Get-ItemProperty -Path "$confRegArray" -ErrorAction Ignore} | %{$_-LOGICAL_AGENT_NAME}
+$PACOBname=%{select-string -pattern "PACOB" $(Join-Path -Path "$agDir" -ChildPath "installed-versions.txt" $DRCOBname=%{select-string -pattern "DRCOB" $(Join-Path -Path "$agDir" -ChildPath "installed-versions. txt"
+§PAPMCname=%{select-string
+-pattern "PAPMC" $(Join-Path -Path "$agDir"
+-ChildPath
+"installed-versions.txt"
+$DRPMCname=%{select-string
+-pattern "DRPMC" $ (Join-Path
