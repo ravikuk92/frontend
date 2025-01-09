@@ -37,7 +37,10 @@ if [[ "$confDataFiles" != "" ]]; then
                 agSSL=$(awk '/AG_MODE/{print $2}' "$confData")
                 agPersistent=$(awk '/PERSISTENT_CONNECTION/{print $2}' "$confData")
                 agProtocol=$(awk '/PROTOCOL_VERSION/{print $2}' "$confData")
-            fi
+                
+            AgJavaHomepath=$(awk '/AG_JAVA_HOME/ {print $2}' "$confData")
+AgJavaVersion=$(grep 'JAVA_VERSION' "$AgJavaHomepath/release" | head -n 1 | awk -F= '{print $2}' | tr -d '"')
+AgJavaSrc=$(grep 'IMPLEMENTOR' "$AgJavaHomepath/release" | head -n 1 | awk -F= '{print $2}' | tr -d '"')
 
             # Extract version details
             PACOBname=$(grep "PACOB" "$AGHOME"/installed-versions.txt 2>/dev/null | tail -1 | awk '{print $1}')
